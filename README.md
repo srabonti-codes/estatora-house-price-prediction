@@ -1,72 +1,121 @@
 # Estatora
 
-Estatora is a house-price estimation project built around the Ames, Iowa housing dataset. It combines a React form, a FastAPI prediction API, and a trainable XGBoost pipeline to estimate a property's sale price from selected property details.
+Estatora is a house-price estimation project built around the Ames, Iowa housing dataset. It combines a React form, a FastAPI prediction API, and a trainable XGBoost pipeline to estimate a property's sale price from selected characteristics.
 
-This repository is a source-code and machine-learning showcase. The estimate is an educational prediction, not a real-estate appraisal or financial advice.
+**Live previews:** [Estatora](https://estatora.onrender.com/) · [VoltCast](https://voltcast.onrender.com/) · [Tranzacta](https://tranzacta.onrender.com/)
 
-## Overview
+The estimate is an educational prediction, not a real-estate appraisal or financial advice.
 
-The browser collects a focused set of property characteristics and sends them to the API. The backend fills unprovided model features with training-set medians or modes, applies the saved preprocessing pipeline, and returns a USD estimate.
+## Contents
 
-The raw dataset and trained model are intentionally not included. Supply an appropriately licensed Ames Housing CSV and train a local model before requesting predictions.
+- [Project overview](#project-overview)
+- [Problem and objectives](#problem-and-objectives)
+- [Features](#features)
+- [Prediction workflow](#prediction-workflow)
+- [Dataset and preprocessing](#dataset-and-preprocessing)
+- [Feature engineering](#feature-engineering)
+- [Model training and evaluation](#model-training-and-evaluation)
+- [Technology and architecture](#technology-and-architecture)
+- [Repository structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Setup and running locally](#setup-and-running-locally)
+- [Configuration](#configuration)
+- [API usage](#api-usage)
+- [Tests and build](#tests-and-build)
+- [Implementation notes and limitations](#implementation-notes-and-limitations)
+- [Security and data licensing](#security-and-data-licensing)
+- [License](#license)
+
+## Project overview
+
+The browser collects a focused set of property characteristics and sends them to the API. The backend validates the request, supplies locally learned defaults for omitted features, applies the saved preprocessing pipeline, and returns an estimated sale price in USD.
+
+This is a source-only release: the dataset and trained model artifacts are not included. The API can start without them, but reports degraded health and returns `503` for predictions until a local model has been trained.
+
+## Problem and objectives
+
+House prices depend on property size, quality, condition, location, and other features. Estatora demonstrates an end-to-end regression workflow that transforms a user-friendly subset of property inputs into the model's full feature set, then serves a local XGBoost prediction through an API and browser interface.
+
+The estimate should be treated as a model output for exploration, not a current market valuation or professional advice.
 
 ## Features
 
-- Responsive property-estimate form with common home, quality, size, and sale details.
-- FastAPI endpoints for health, model information, local training metrics, and predictions.
-- Ames-specific preprocessing and derived features, including total area, bathrooms, porch area, and age at sale.
-- Median/mode defaults for model inputs not exposed in the form.
-- Research notebook comparing linear regression, random forest, XGBoost, MLP, TabNet, and FT-Transformer.
-- A committed feature schema allows the API to start without access to the raw dataset.
-- Validation-based model selection in the notebook; the test split is reserved for final evaluation.
+- React form for common Ames property, quality, size, and sale details.
+- FastAPI request validation and JSON prediction responses.
+- A committed feature schema that lets the API load without the raw dataset.
+- Ames-specific preprocessing and derived features such as total area, bathrooms, porch area, and age at sale.
+- Training-split medians and modes for model fields omitted from the form.
+- Jupyter notebook for exploration and model comparison, plus a script for training the serving XGBoost model.
+- API health, model-information, metrics, and prediction endpoints.
 
-### Customer experience
+## Prediction workflow
 
-Visitors provide common property characteristics such as neighborhood, quality, living area, lot size, year built, bathrooms, and garage size. The frontend submits these values and presents the predicted sale price in USD. Fields not shown in the form receive typical dataset values in the API.
+1. A user enters the supported property details in the frontend.
+2. The browser sends the values to `POST /api/predict`.
+3. Pydantic validates feature types and rejects unknown fields and non-finite numeric values.
+4. The service fills omitted features with defaults saved in the local model bundle.
+5. The preprocessing pipeline engineers features, imputes values, scales numeric inputs, and encodes categories.
+6. The XGBoost regressor predicts in log-price space; the API converts the result back to a USD sale-price estimate.
 
-### Consultation and administration
+## Dataset and preprocessing
 
-Estatora does not implement consultations, user accounts, administrator tools, or role-based permissions. The API and estimate form are public; there is no authentication or authorization layer.
+The project is based on the Ames, Iowa housing dataset. A matching [Kaggle Ames Housing Dataset](https://www.kaggle.com/datasets/prevek18/ames-housing-dataset) is available from the `prevek18` account. Kaggle currently reports the dataset license as **Unknown**. The project does not redistribute the CSV.
 
-## Technology
+The training script expects a CSV containing `SalePrice`, `Order`, and `PID`. Obtain a copy only from a source whose terms permit your intended use, review its license, and place it locally at `backend/data/house-price.csv`. Create that local directory if needed. The notebook and training script remove duplicate rows, clean column values, and split the data into training and holdout sets.
 
-| Area | Technologies |
-|---|---|
-| Frontend | React 18, Vite, Tailwind CSS 4, Lucide React |
-| API | Python, FastAPI, Pydantic, Uvicorn |
-| Data and modeling | pandas, NumPy, scikit-learn, XGBoost, joblib |
-| Research notebook | Jupyter, Matplotlib, Seaborn, PyTorch |
+The notebook preserves selected aggregate summaries and plots from an earlier run; it does not retain raw dataset rows. No trained-model inference output is bundled.
 
-## Architecture
+For the original dataset context, see Dean De Cock, “Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project,” *Journal of Statistics Education*, 19(3), 2011. See the [article and dataset documentation](https://jse.amstat.org/v19n3/decock.pdf).
 
-```text
-Browser
-  └── React + Vite
-        └── POST /api/predict
-              └── FastAPI
-                    ├── validates Ames feature fields
-                    ├── supplies defaults for omitted values
-                    └── loads the preprocessing/model bundle
-                          └── XGBoost prediction in log-price space
+## Feature engineering
+
+The browser exposes 25 common features. The API schema supports 79 predictor fields from the Ames dataset. The preprocessing pipeline also derives features such as total area, total bathrooms, total porch area, and age at sale. Other omitted inputs use defaults learned from the training split, not hardcoded values.
+
+The `MS SubClass` and `Mo Sold` fields are treated as categorical by the feature transformer. Categorical features are imputed and one-hot encoded; numeric features are imputed and scaled.
+
+## Model training and evaluation
+
+The research notebook in `backend/notebooks/house-price-prediction.ipynb` compares linear regression, random forest, XGBoost, MLP, TabNet, and FT-Transformer models. It selects a model using validation RMSE and reserves the test split for final evaluation.
+
+The serving model is trained by `backend/train_model.py`. It fits an XGBoost regressor to `log1p(SalePrice)` and writes a local model bundle and metadata beneath `backend/models/`. Generated files and metrics are excluded from Git. The model service currently expects this XGBoost bundle; notebook experiments are for research and are not all part of the serving path.
+
+No model artifact or benchmark metrics are included in this release, so no performance claim is made here.
+
+## Technology and architecture
+
+- **Frontend:** React 18, Vite, Tailwind CSS 4, and Lucide React.
+- **API:** Python, FastAPI, Pydantic, and Uvicorn.
+- **Data and machine learning:** pandas, NumPy, scikit-learn, XGBoost, and Joblib.
+- **Exploration:** Jupyter, Matplotlib, Seaborn, and PyTorch.
+- **Testing:** pytest and FastAPI TestClient.
+
+```mermaid
+flowchart LR
+    U[Property inputs] --> W[React and Vite frontend]
+    W -->|POST /api/predict| A[FastAPI validation and routes]
+    A --> F[Ames feature engineering]
+    F --> P[Saved preprocessing pipeline]
+    P --> M[Locally trained XGBoost model]
+    M --> R[Sale-price estimate in USD]
+    N[Jupyter notebook or training script] -->|generates artifacts locally| P
+    N -->|generates artifacts locally| M
 ```
 
-The model service loads a locally generated `backend/models/best_house_price_model.joblib` bundle at API startup. The notebook and `backend/train_model.py` contain the feature-processing and training workflows.
+The backend separates request schemas, API routes, configuration, and model inference. The frontend calls the API through the configured `VITE_API_URL`.
 
 ## Repository structure
 
 ```text
-.
+Estatora/
 ├── backend/
 │   ├── app/
-│   │   ├── config.py
+│   │   ├── api/
+│   │   ├── services/
 │   │   ├── feature_schema.json
+│   │   ├── config.py
 │   │   ├── main.py
-│   │   ├── schemas.py
-│   │   └── services/model_service.py
-│   ├── data/README.md
-│   ├── models/
-│   │   ├── ames_features.py
-│   │   └── __init__.py
+│   │   └── schemas.py
+│   ├── models/                  # Feature-engineering source; generated models are local only
 │   ├── notebooks/
 │   │   ├── house-price-prediction.ipynb
 │   │   └── requirements.txt
@@ -77,46 +126,57 @@ The model service loads a locally generated `backend/models/best_house_price_mod
 │   ├── src/
 │   ├── .env.example
 │   ├── package.json
-│   └── vite.config.js
+│   └── package-lock.json
 ├── .gitignore
 ├── LICENSE
 └── README.md
 ```
 
+The local `backend/data/` directory and generated `backend/models/` artifacts are not part of the repository.
+
 ## Prerequisites
 
-- Python 3.11 or newer
-- Node.js 20 or newer and npm
+- Python 3.11 or newer.
+- Node.js 20 or newer and npm.
+- Git.
 
-## Local setup
+## Setup and running locally
 
-### Dataset and model setup
+Clone the repository:
 
-The repository does not include raw housing data or a pretrained model. Obtain an Ames Housing CSV from a source whose terms permit your use and save it as `backend/data/house-price.csv`. From `backend/`, install the dependencies and train the serving model:
+```bash
+git clone https://github.com/srabonti-codes/estatora-house-price-prediction.git
+cd estatora-house-price-prediction
+```
+
+### Backend
+
+From `backend/`, create a virtual environment and install dependencies:
 
 ```powershell
-cd backend
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+```
+
+After obtaining an appropriately licensed dataset, create `backend/data/`, save it as `house-price.csv`, and train the serving model:
+
+```powershell
+New-Item -ItemType Directory -Force data
 python train_model.py
 ```
 
-Training writes `models/best_house_price_model.joblib` and `models/metadata.json` locally. These generated files and the dataset are ignored by Git.
-
-### Backend API
-
-After training, start the API from `backend/`:
+Start the API from `backend/`:
 
 ```powershell
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Without a locally generated model bundle, the API reports a degraded health status and prediction requests return `503`. No backend `.env` file or external service is required.
+Without a locally generated model bundle, `/api/health` reports a degraded state and prediction requests return `503`.
 
 ### Frontend
 
-In a second terminal:
+In another terminal:
 
 ```powershell
 cd frontend
@@ -125,78 +185,81 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Open the local URL printed by Vite. With `VITE_API_URL` left blank, development requests use the Vite `/api` proxy to reach `http://localhost:8000`. Set it to the API origin when the frontend and API are hosted separately. The value is compiled into the browser bundle and must never contain a secret.
+Open the Vite URL printed in the terminal. Leave `VITE_API_URL` blank to use the local Vite `/api` proxy; set it to the API origin when using a separate frontend/API origin.
 
-## Environment configuration
+## Configuration
 
-`frontend/.env.example` documents the only application setting:
+The backend has no credential requirements. `frontend/.env.example` contains the only frontend setting:
 
-| Variable | Purpose | Example |
+| Variable | Purpose | Default |
 |---|---|---|
-| `VITE_API_URL` | Optional API origin. Leave blank to use the development proxy or same-origin API. | `https://api.example.com` |
+| `VITE_API_URL` | Optional API origin. The value is compiled into browser code and must not contain secrets. | Blank; local requests use the Vite proxy |
 
-The backend has no environment-specific credentials or configuration variables. Do not put keys, passwords, or private values in `VITE_*` variables; frontend values are public.
+Keep local `.env` and `.env.local` files out of Git. The `.gitignore` excludes environment files while allowing `.env.example`.
 
-## Development commands
+## API usage
 
-Run these commands from `frontend/`:
-
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Start the Vite development server |
-| `npm run build` | Create the frontend production bundle in `dist/` |
-| `npm run preview` | Preview a previously created frontend build |
-
-Run the API from `backend/` with `uvicorn app.main:app --reload`. The API documentation is available at `/docs` and `/api/docs`.
-
-### Retraining and notebook
-
-To retrain the serving XGBoost model using the fixed seed and split:
-
-```powershell
-cd backend
-python train_model.py
-```
-
-This writes the API model bundle and local `metadata.json` using defaults learned from the training split. For the full multi-model research notebook, install its additional dependencies and launch it from `backend/`:
-
-```powershell
-python -m pip install -r notebooks/requirements.txt
-jupyter lab notebooks/house-price-prediction.ipynb
-```
-
-The notebook selects a model using validation performance and then evaluates that selection against the held-out test split. Its notebook outputs are not committed; the source cells can be run to reproduce the analysis.
-
-## API endpoints
+Interactive API documentation is available at `http://localhost:8000/docs`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`, `HEAD` | `/api/health` | Report API and model readiness |
-| `POST` | `/api/predict` | Return an estimated sale price |
-| `GET` | `/api/model-info` | Report model and target metadata |
-| `GET` | `/api/metrics` | Return recorded model metrics |
-| `GET` | `/api/docs` | Redirect to the FastAPI documentation |
+| `GET` | `/` | Application name, version, and status |
+| `GET`, `HEAD` | `/api/health` | Model and prediction readiness |
+| `GET` | `/api/model-info` | Model and target information |
+| `GET` | `/api/metrics` | Available model metrics |
+| `POST` | `/api/predict` | Estimate a property's sale price |
 
-The prediction request accepts optional fields from the committed Ames feature schema. Fields not provided by the caller are populated with training-set medians or modes stored in the local model bundle before preprocessing. The response includes `predicted_price` and `currency: "USD"`.
+Example request:
 
-## Model and evaluation notes
+```bash
+curl -X POST http://localhost:8000/api/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Neighborhood": "NAmes",
+    "Overall Qual": 7,
+    "Gr Liv Area": 1500,
+    "Lot Area": 5000,
+    "Year Built": 1970,
+    "Garage Cars": 2
+  }'
+```
 
-The serving bundle contains an XGBoost regressor trained on `log1p(SalePrice)` and the corresponding preprocessing pipeline. The research notebook applies Ames-specific feature engineering, imputes missing values, scales numeric features, and one-hot encodes categorical features. Model selection is based on validation RMSE; the test split is reserved for final evaluation. Benchmark outputs are generated locally and are not committed.
+All feature fields are optional; omitted values use defaults saved in the trained bundle. The response includes `predicted_price` and `currency: "USD"`.
 
-The Ames dataset covers historical sales in Ames, Iowa. Estimates do not represent current market prices or a professional appraisal.
+## Tests and build
 
-## Data attribution and licensing
+Run the backend tests from `backend/`:
 
-The project is based on Dean De Cock, “Ames, Iowa: Alternative to the Boston Housing Data as an End of Semester Regression Project,” *Journal of Statistics Education*, 19(3), 2011. See the [article and dataset documentation](https://jse.amstat.org/v19n3/decock.pdf). A public Kaggle mirror of the dataset reports its license as `Unknown`, so this repository does not redistribute the CSV or a model trained from it. Obtain the data from a source whose terms permit your intended use.
+```bash
+python -m pytest
+```
 
-The MIT license in this repository applies to original Estatora code only. Third-party dependencies and any locally obtained data or generated model retain their respective terms; neither the dataset nor a trained model is included here.
+Build the frontend from `frontend/`:
 
-## Security and implementation notes
+```bash
+npm ci
+npm run build
+```
 
-- The API has no authentication and is intended for public, non-sensitive estimates. Do not use it to process private customer data without adding appropriate access controls.
-- CORS is open to browser origins for the public API, but credentialed cross-origin requests are disabled.
-- `joblib` model files use Python object serialization. Load only model artifacts from a source you trust.
-- The frontend API URL is public configuration, not a place for credentials.
-- The API's omitted-feature defaults are computed from the training split and stored in the generated model bundle.
-- The API can start without the dataset or model, but predictions require a locally trained bundle.
-- No automated test suite is included in this repository at present.
+The build output is generated under `frontend/dist/` and is not source-controlled.
+
+## Implementation notes and limitations
+
+- The dataset and model are not included. The API starts in a degraded state until the user obtains permitted data and trains a model locally.
+- The research notebook explores model families beyond the XGBoost model supported by the serving API.
+- The Kaggle listing used as a matching Ames data reference reports its license as Unknown; verify terms before obtaining, using, or redistributing any copy.
+- Ames prices represent historical sales in Iowa and do not estimate current market values.
+- This project does not implement a user account system, consultations, administrator tools, or role-based permissions.
+- No production deployment configuration is included in this source-only repository.
+
+## Security and data licensing
+
+- The API has no authentication and is intended for local, non-sensitive demonstration use. Add appropriate access controls before hosting it for public or private customer data.
+- CORS currently allows requests from any browser origin but disables credentialed requests; configure a narrower allowlist before production use.
+- Joblib model files use Python pickle serialization. Load only model artifacts from a source you trust.
+- The [Kaggle Ames Housing Dataset](https://www.kaggle.com/datasets/prevek18/ames-housing-dataset) reports an Unknown license. This repository excludes the dataset and trained model artifacts; review the data source's terms before creating or redistributing derivatives.
+- The root MIT license applies to original Estatora code only, not the dataset or third-party dependencies.
+
+## License
+
+Original project code is provided under the [MIT License](./LICENSE). Dataset terms remain separate and must be checked at the source.

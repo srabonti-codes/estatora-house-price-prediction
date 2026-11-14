@@ -33,12 +33,18 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # Local training data and generated model outputs
-backend/data/house-price.csv
+backend/data/
 backend/models/*.joblib
 backend/models/*.pt
+backend/models/*.pkl
+backend/models/*.pickle
+backend/models/*.keras
+backend/models/*.h5
+backend/models/*.pth
 backend/models/metadata.json
 backend/models/all_split_metrics.csv
 backend/models/model_comparison.csv
+backend/models/*.csv
 
 # Local databases and dumps
 *.db
