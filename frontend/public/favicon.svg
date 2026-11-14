@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Estatora icon">
+  <defs>
+    <linearGradient id="a" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#22c55e" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#0f172a"/>
+  <path d="M15 34 32 18l17 16v15a4 4 0 0 1-4 4H19a4 4 0 0 1-4-4V34Z" fill="url(#a)"/>
+  <path d="M25 49V34h14v15" fill="#ecfeff" opacity="0.9"/>
+  <path d="M28 26h8l-4-5-4 5Z" fill="#ecfeff" opacity="0.8"/>
+</svg>
