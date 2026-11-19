@@ -2,7 +2,7 @@
 
 Estatora is a house-price estimation project built around the Ames, Iowa housing dataset. It combines a React form, a FastAPI prediction API, and a trainable XGBoost pipeline to estimate a property's sale price from selected characteristics.
 
-**Live previews:** [Estatora](https://estatora.onrender.com/) · [VoltCast](https://voltcast.onrender.com/) · [Tranzacta](https://tranzacta.onrender.com/)
+**Live preview:** [Estatora](https://estatora.onrender.com/)
 
 The estimate is an educational prediction, not a real-estate appraisal or financial advice.
 
